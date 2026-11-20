@@ -4,11 +4,13 @@ const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:
 
 function apiUrl() {
   if (typeof window === "undefined") return CONFIGURED_API_URL
-  const host = window.location.hostname
-  if (host === "localhost" || host === "127.0.0.1") return CONFIGURED_API_URL
   const configured = new URL(CONFIGURED_API_URL)
+  const configuredIsLocal = configured.hostname === "localhost" || configured.hostname === "127.0.0.1"
+  const pageHost = window.location.hostname
+  const pageIsLocal = pageHost === "localhost" || pageHost === "127.0.0.1"
+  if (!configuredIsLocal || pageIsLocal) return CONFIGURED_API_URL
   const port = configured.port ? `:${configured.port}` : ""
-  return `${configured.protocol}//${host}${port}`
+  return `${configured.protocol}//${pageHost}${port}`
 }
 const TOKEN_KEY = "smarttrap_token"
 
