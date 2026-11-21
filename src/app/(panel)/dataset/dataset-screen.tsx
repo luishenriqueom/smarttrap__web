@@ -44,6 +44,8 @@ export default function DatasetPage() {
   const [offset, setOffset] = useState(0)
   const [unseen, setUnseen] = useState(0)
   const [selected, setSelected] = useState<Capture | null>(null)
+  const [picked, setPicked] = useState<string[]>([])
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const filters = useRef({ deviceId, from, to, offset })
   filters.current = { deviceId, from, to, offset }
@@ -69,6 +71,7 @@ export default function DatasetPage() {
 
   useEffect(() => {
     waiting.current = []
+    setPicked([])
   }, [deviceId, from, to])
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function DatasetPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dataset</h1>
-          <p className="text-sm text-muted-foreground">Fotos recebidas na fase de coleta, com contagem manual e rótulo.</p>
+          <p className="text-sm text-muted-foreground">Fotos recebidas na fase de coleta. As excluídas ficam fora da exportação.</p>
         </div>
         <Button type="button" onClick={() => setExportOpen(true)}>
           Exportar Dataset
@@ -155,6 +158,34 @@ export default function DatasetPage() {
           </Button>
         </div>
       ) : null}
+      {!readOnly && captures.data && captures.data.items.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={captures.data.items.every((capture) => picked.includes(capture.id))}
+              onChange={(event) => {
+                const ids = captures.data?.items.map((capture) => capture.id) ?? []
+                setPicked((current) =>
+                  event.target.checked ? [...new Set([...current, ...ids])] : current.filter((id) => !ids.includes(id)),
+                )
+              }}
+            />
+            Selecionar esta página
+          </label>
+          {picked.length > 0 ? (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {picked.length === 1 ? "1 selecionada" : `${picked.length} selecionadas`}
+              </span>
+              <Button type="button" variant="destructive" size="sm" onClick={() => setPendingDelete(picked)}>
+                Excluir selecionadas
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {captures.isLoading ? <p className="text-sm text-muted-foreground">Carregando fotos...</p> : null}
       {captures.data && captures.data.items.length === 0 ? (
         <div className="rounded-xl border border-dashed px-6 py-14 text-center text-sm text-muted-foreground">
@@ -164,9 +195,25 @@ export default function DatasetPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         {captures.data?.items.map((capture) => {
           const resolution = captureCameraLabel(capture)
+          const checked = picked.includes(capture.id)
           return (
-            <button key={capture.id} type="button" className="text-left" onClick={() => setSelected(capture)}>
-              <Card className="overflow-hidden py-0">
+            <Card key={capture.id} className={`relative overflow-hidden py-0 ${checked ? "ring-2 ring-primary" : ""}`}>
+              {readOnly ? null : (
+                <label className="absolute top-2 left-2 z-10 grid size-7 place-items-center rounded-md bg-background/90 shadow-sm">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={checked}
+                    aria-label={`Selecionar foto de ${capture.device_name}`}
+                    onChange={() =>
+                      setPicked((current) =>
+                        current.includes(capture.id) ? current.filter((id) => id !== capture.id) : [...current, capture.id],
+                      )
+                    }
+                  />
+                </label>
+              )}
+              <button type="button" className="block w-full text-left" onClick={() => setSelected(capture)}>
                 <CaptureImage id={capture.id} alt={capture.device_name} className="aspect-square w-full object-cover" />
                 <CardContent className="space-y-1 py-3">
                   <p className="truncate text-sm font-medium">{capture.device_name}</p>
@@ -174,8 +221,8 @@ export default function DatasetPage() {
                   {resolution ? <p className="text-xs text-muted-foreground">{resolution}</p> : null}
                   <p className="text-xs">{labelText(capture.label)}</p>
                 </CardContent>
-              </Card>
-            </button>
+              </button>
+            </Card>
           )
         })}
       </div>
@@ -194,7 +241,24 @@ export default function DatasetPage() {
       ) : null}
 
       {selected ? (
-        <CaptureDialog capture={selected} readOnly={readOnly} onClose={() => setSelected(null)} />
+        <CaptureDialog
+          capture={selected}
+          readOnly={readOnly}
+          onClose={() => setSelected(null)}
+          onDelete={() => setPendingDelete([selected.id])}
+        />
+      ) : null}
+      {pendingDelete ? (
+        <DiscardDialog
+          ids={pendingDelete}
+          onClose={() => setPendingDelete(null)}
+          onDone={() => {
+            const removed = new Set(pendingDelete)
+            setPicked((current) => current.filter((id) => !removed.has(id)))
+            if (selected && removed.has(selected.id)) setSelected(null)
+            setPendingDelete(null)
+          }}
+        />
       ) : null}
       {exportOpen ? (
         <ExportDialog
@@ -232,7 +296,7 @@ function ExportDialog({
       <div className="w-full max-w-md rounded-xl bg-card p-4" onClick={(event) => event.stopPropagation()}>
         <h2 className="text-lg font-semibold">Exportar Dataset</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          O zip traz as fotos do período, com o código da armadilha e a data no nome, e um manifest.csv com os rótulos, a resolução e a qualidade JPEG.
+          O zip traz só as fotos válidas do período. Imagens excluídas ficam de fora. O nome usa o código da armadilha e a data, e o manifest.csv traz rótulo, resolução e qualidade JPEG.
         </p>
         <form
           className="mt-4 space-y-4"
@@ -331,7 +395,75 @@ function CaptureImage({ id, alt, className }: { id: string; alt: string; classNa
   return <img src={src} alt={alt} className={className} />
 }
 
-function CaptureDialog({ capture, readOnly, onClose }: { capture: Capture; readOnly: boolean; onClose: () => void }) {
+function DiscardDialog({ ids, onClose, onDone }: { ids: string[]; onClose: () => void; onDone: () => void }) {
+  const queryClient = useQueryClient()
+  const [pending, setPending] = useState(false)
+  const count = ids.length
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl bg-card p-4" onClick={(event) => event.stopPropagation()}>
+        <h2 className="text-lg font-semibold">{count === 1 ? "Excluir imagem" : `Excluir ${count} imagens`}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {count === 1 ? "Ela sai" : "Elas saem"} do dataset e da exportação. O arquivo continua guardado e a exclusão pode ser desfeita.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={pending}
+            onClick={() => {
+              setPending(true)
+              api
+                .discardCaptures(ids)
+                .then(() => {
+                  toast.success(count === 1 ? "Imagem excluída do dataset" : `${count} imagens excluídas do dataset`, {
+                    action: {
+                      label: "Desfazer",
+                      onClick: () => {
+                        void api
+                          .restoreCaptures(ids)
+                          .then(() => {
+                            queryClient.invalidateQueries({ queryKey: ["captures"] })
+                            queryClient.invalidateQueries({ queryKey: ["devices"] })
+                            toast.success(count === 1 ? "Imagem restaurada" : "Imagens restauradas")
+                          })
+                          .catch((error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível restaurar"))
+                      },
+                    },
+                  })
+                  queryClient.invalidateQueries({ queryKey: ["captures"] })
+                  queryClient.invalidateQueries({ queryKey: ["devices"] })
+                  onDone()
+                })
+                .catch((error) => {
+                  toast.error(error instanceof ApiError ? error.message : "Não foi possível excluir")
+                  setPending(false)
+                })
+            }}
+          >
+            {pending ? "Excluindo..." : "Excluir"}
+          </Button>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CaptureDialog({
+  capture,
+  readOnly,
+  onClose,
+  onDelete,
+}: {
+  capture: Capture
+  readOnly: boolean
+  onClose: () => void
+  onDelete: () => void
+}) {
   const queryClient = useQueryClient()
   const [manualCount, setManualCount] = useState(capture.manual_count === null ? "" : String(capture.manual_count))
   const [label, setLabel] = useState(capture.label)
@@ -397,6 +529,11 @@ function CaptureDialog({ capture, readOnly, onClose }: { capture: Capture; readO
             <Button type="submit" disabled={readOnly || mutation.isPending}>
               Salvar
             </Button>
+            {readOnly ? null : (
+              <Button type="button" variant="destructive" onClick={onDelete}>
+                Excluir
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={onClose}>
               Fechar
             </Button>
