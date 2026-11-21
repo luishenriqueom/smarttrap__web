@@ -40,6 +40,8 @@ export type Device = {
   created_at: string
   last_metric: Metric | null
   capture_count: number
+  frame_size: string
+  jpeg_quality: number
 }
 
 export type Capture = {
@@ -50,6 +52,10 @@ export type Capture = {
   captured_at: string
   received_at: string
   size_bytes: number
+  frame_size: string | null
+  jpeg_quality: number | null
+  width: number | null
+  height: number | null
   manual_count: number | null
   label: "unlabeled" | "with_pest" | "without_pest"
   notes: string | null

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ApiError, api, downloadDataset, fetchCaptureBlob, subscribeCaptures } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { formatDateTime, labelText } from "@/lib/format"
+import { captureCameraLabel } from "@/lib/framesize"
 import type { Capture, Device, Page } from "@/lib/types"
 
 const PAGE_SIZE = 12
@@ -161,18 +162,22 @@ export default function DatasetPage() {
         </div>
       ) : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-        {captures.data?.items.map((capture) => (
-          <button key={capture.id} type="button" className="text-left" onClick={() => setSelected(capture)}>
-            <Card className="overflow-hidden py-0">
-              <CaptureImage id={capture.id} alt={capture.device_name} className="aspect-square w-full object-cover" />
-              <CardContent className="space-y-1 py-3">
-                <p className="truncate text-sm font-medium">{capture.device_name}</p>
-                <p className="text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
-                <p className="text-xs">{labelText(capture.label)}</p>
-              </CardContent>
-            </Card>
-          </button>
-        ))}
+        {captures.data?.items.map((capture) => {
+          const resolution = captureCameraLabel(capture)
+          return (
+            <button key={capture.id} type="button" className="text-left" onClick={() => setSelected(capture)}>
+              <Card className="overflow-hidden py-0">
+                <CaptureImage id={capture.id} alt={capture.device_name} className="aspect-square w-full object-cover" />
+                <CardContent className="space-y-1 py-3">
+                  <p className="truncate text-sm font-medium">{capture.device_name}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
+                  {resolution ? <p className="text-xs text-muted-foreground">{resolution}</p> : null}
+                  <p className="text-xs">{labelText(capture.label)}</p>
+                </CardContent>
+              </Card>
+            </button>
+          )
+        })}
       </div>
       {captures.data && captures.data.total > captures.data.limit ? (
         <div className="flex items-center justify-between">
@@ -227,7 +232,7 @@ function ExportDialog({
       <div className="w-full max-w-md rounded-xl bg-card p-4" onClick={(event) => event.stopPropagation()}>
         <h2 className="text-lg font-semibold">Exportar Dataset</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          O zip traz as fotos do período, com o código da armadilha e a data no nome, e um manifest.csv com os rótulos.
+          O zip traz as fotos do período, com o código da armadilha e a data no nome, e um manifest.csv com os rótulos, a resolução e a qualidade JPEG.
         </p>
         <form
           className="mt-4 space-y-4"
@@ -360,6 +365,7 @@ function CaptureDialog({ capture, readOnly, onClose }: { capture: Capture; readO
           <div>
             <h2 className="text-lg font-semibold">{capture.device_name}</h2>
             <p className="text-sm text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
+            {captureCameraLabel(capture) ? <p className="text-sm text-muted-foreground">{captureCameraLabel(capture)}</p> : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="count">Contagem manual</Label>

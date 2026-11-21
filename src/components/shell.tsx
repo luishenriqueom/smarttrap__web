@@ -26,7 +26,7 @@ export function Shell({ user, children }: { user: User; children: React.ReactNod
 
   return (
     <div className="flex min-h-dvh bg-background">
-      <aside className="hidden w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col self-start bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-3 px-5 py-6">
           <span className="grid size-10 place-items-center rounded-xl bg-sidebar-accent">
             <Crosshair className="size-5 text-sidebar-primary" />
@@ -36,7 +36,7 @@ export function Shell({ user, children }: { user: User; children: React.ReactNod
             <p className="text-xs text-sidebar-foreground/70">Monitoramento de campo</p>
           </div>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
           {items.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} />
           ))}

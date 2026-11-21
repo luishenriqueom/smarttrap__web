@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
+import { frameSizeLabel } from "@/lib/framesize"
 import { formatDateTime, formatNumber, formatPercent, periodRange } from "@/lib/format"
 import type { Period } from "@/lib/types"
 
@@ -23,6 +25,7 @@ const periods: { value: Period; label: string }[] = [
 export default function TrapDetailPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
+  const { user } = useAuth()
   const [period, setPeriod] = useState<Period>("7d")
   const range = periodRange(period)
   const device = useQuery({ queryKey: ["device", id], queryFn: () => api.device(id), enabled: Boolean(id) })
@@ -47,10 +50,15 @@ export default function TrapDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{current.name}</h1>
             <Badge variant={current.is_online ? "default" : "outline"}>{current.is_online ? "Online" : "Offline"}</Badge>
+            {user && !user.is_demo ? (
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/traps/${current.id}/edit`} />}>
+                Editar
+              </Button>
+            ) : null}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {current.code}
-            {current.location ? ` · ${current.location}` : ""} · {current.owner_name}
+            {current.location ? ` · ${current.location}` : ""} · {current.owner_name} · Resolução {frameSizeLabel(current.frame_size)} · JPEG {current.jpeg_quality}
           </p>
         </div>
         <Select
