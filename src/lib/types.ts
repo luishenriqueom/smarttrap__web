@@ -42,6 +42,8 @@ export type Device = {
   capture_count: number
   frame_size: string
   jpeg_quality: number
+  sleep_seconds: number
+  model_id: string | null
 }
 
 export type Capture = {
@@ -77,6 +79,37 @@ export type Page<T> = {
 }
 
 export type Period = "24h" | "7d" | "30d"
+
+export type Species = {
+  id: string
+  name: string
+  position: number
+}
+
+export type Annotation = {
+  id: string
+  capture_id: string
+  species_id: string
+  species_name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  source: "human" | "device"
+  confidence: number | null
+}
+
+export type TrainedModel = {
+  id: string
+  status: "idle" | "training" | "ready" | "failed" | string
+  sha256: string | null
+  class_labels: string[]
+  input_size: number
+  window: number
+  stride: number
+  error: string | null
+  created_at: string
+}
 
 export type FirmwareTarget = "smarttrap" | "heltec"
 

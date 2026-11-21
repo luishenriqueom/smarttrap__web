@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError, api } from "@/lib/api"
 import { FRAME_SIZES } from "@/lib/framesize"
+import type { TrainedModel } from "@/lib/types"
 
 export type TrapDraft = {
   id: string
@@ -19,6 +20,8 @@ export type TrapDraft = {
   owner_id: string
   frame_size: string
   jpeg_quality: number
+  sleep_seconds: number
+  model_id: string | null
 }
 
 export function TrapForm({
@@ -40,18 +43,29 @@ export function TrapForm({
   const [ownerId, setOwnerId] = useState(initial?.owner_id ?? "")
   const [frameSize, setFrameSize] = useState(initial?.frame_size ?? "svga")
   const [jpegQuality, setJpegQuality] = useState(String(initial?.jpeg_quality ?? 12))
+  const [sleepMinutes, setSleepMinutes] = useState(String(Math.round((initial?.sleep_seconds ?? 300) / 60)))
+  const [modelId, setModelId] = useState(initial?.model_id ?? "")
+  const models = useQuery({ queryKey: ["models"], queryFn: () => api.models(), enabled: Boolean(initial) })
+  const readyModels = (models.data ?? []).filter((model): model is TrainedModel => model.status === "ready")
   const mutation = useMutation({
     mutationFn: async () => {
       const quality = Number(jpegQuality)
+      const minutes = Number(sleepMinutes)
       if (!Number.isInteger(quality) || quality < 4 || quality > 63) {
         throw new ApiError(422, "A qualidade JPEG deve ficar entre 4 e 63")
       }
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+        throw new ApiError(422, "O intervalo de sono deve ficar entre 1 minuto e 24 horas")
+      }
+      const sleepSeconds = minutes * 60
       if (initial) {
         return api.updateDevice(initial.id, {
           name,
           location,
           frame_size: frameSize,
           jpeg_quality: quality,
+          sleep_seconds: sleepSeconds,
+          model_id: modelId || null,
           ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
         })
       }
@@ -61,6 +75,7 @@ export function TrapForm({
         location,
         frame_size: frameSize,
         jpeg_quality: quality,
+        sleep_seconds: sleepSeconds,
         ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
       })
     },
@@ -130,6 +145,43 @@ export function TrapForm({
             />
             <p className="text-xs text-muted-foreground">De 4 a 63. Um número menor gera um arquivo maior e mais nítido. O padrão é 12.</p>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="trap-sleep">Intervalo de sono (minutos)</Label>
+            <Input
+              id="trap-sleep"
+              type="number"
+              min={1}
+              max={1440}
+              step={1}
+              value={sleepMinutes}
+              onChange={(event) => setSleepMinutes(event.target.value)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">Depois de cada ciclo. O padrão é 5 minutos. Vale no fim do ciclo em que a armadilha buscar a configuração.</p>
+          </div>
+          {initial ? (
+            <div className="space-y-2">
+              <Label>Modelo</Label>
+              <Select
+                items={{ none: "Nenhum", ...Object.fromEntries(readyModels.map((model) => [model.id, model.class_labels.join(", ") || model.id.slice(0, 8)])) }}
+                value={modelId || "none"}
+                onValueChange={(value) => setModelId(!value || value === "none" ? "" : value)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {readyModels.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.class_labels.join(", ") || model.id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">A armadilha baixa este arquivo na próxima janela de Wi-Fi.</p>
+            </div>
+          ) : null}
           {superadmin ? (
             <div className="space-y-2">
               <Label>Dono</Label>

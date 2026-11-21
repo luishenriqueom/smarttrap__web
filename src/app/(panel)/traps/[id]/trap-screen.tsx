@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
+import { MarkedPhoto } from "@/components/marked-photo"
 import { MetricChart } from "@/components/metric-chart"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +15,7 @@ import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { frameSizeLabel } from "@/lib/framesize"
 import { formatDateTime, formatNumber, formatPercent, periodRange } from "@/lib/format"
-import type { Period } from "@/lib/types"
+import type { Capture, Period } from "@/lib/types"
 
 const periods: { value: Period; label: string }[] = [
   { value: "24h", label: "Últimas 24 horas" },
@@ -29,6 +30,11 @@ export default function TrapDetailPage() {
   const [period, setPeriod] = useState<Period>("7d")
   const range = periodRange(period)
   const device = useQuery({ queryKey: ["device", id], queryFn: () => api.device(id), enabled: Boolean(id) })
+  const photos = useQuery({
+    queryKey: ["captures", id, "recent"],
+    queryFn: () => api.captures({ device_id: id, limit: 6 }),
+    enabled: Boolean(id),
+  })
   const metrics = useQuery({
     queryKey: ["metrics", id, period],
     queryFn: () => api.metrics({ device_id: id, from: range.from, to: range.to, limit: 50 }),
@@ -58,7 +64,7 @@ export default function TrapDetailPage() {
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {current.code}
-            {current.location ? ` · ${current.location}` : ""} · {current.owner_name} · Resolução {frameSizeLabel(current.frame_size)} · JPEG {current.jpeg_quality}
+            {current.location ? ` · ${current.location}` : ""} · {current.owner_name} · Resolução {frameSizeLabel(current.frame_size)} · JPEG {current.jpeg_quality} · Sono {Math.round(current.sleep_seconds / 60)} min
           </p>
         </div>
         <Select
@@ -78,6 +84,23 @@ export default function TrapDetailPage() {
           </SelectContent>
         </Select>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Fotos recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {photos.isLoading ? <p className="text-sm text-muted-foreground">Carregando...</p> : null}
+          {photos.data && photos.data.items.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma foto desta armadilha.</p> : null}
+          {photos.data && photos.data.items.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {photos.data.items.map((capture) => (
+                <RecentPhoto key={capture.id} capture={capture} />
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -136,5 +159,15 @@ export default function TrapDetailPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function RecentPhoto({ capture }: { capture: Capture }) {
+  const boxes = useQuery({ queryKey: ["annotations", capture.id], queryFn: () => api.annotations(capture.id) })
+  return (
+    <figure className="space-y-1">
+      <MarkedPhoto id={capture.id} alt={capture.device_name} boxes={boxes.data ?? []} />
+      <figcaption className="text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</figcaption>
+    </figure>
   )
 }

@@ -107,6 +107,7 @@ function TrapsScreen() {
                   <TableHead>Local</TableHead>
                   <TableHead>Resolução</TableHead>
                   <TableHead>JPEG</TableHead>
+                  <TableHead>Sono</TableHead>
                   {user?.role === "superadmin" ? <TableHead>Dono</TableHead> : null}
                   <TableHead>Estado</TableHead>
                   <TableHead />
@@ -120,6 +121,7 @@ function TrapsScreen() {
                     <TableCell>{device.location || "—"}</TableCell>
                     <TableCell>{frameSizeLabel(device.frame_size)}</TableCell>
                     <TableCell>{device.jpeg_quality}</TableCell>
+                    <TableCell>{Math.round(device.sleep_seconds / 60)} min</TableCell>
                     {user?.role === "superadmin" ? <TableCell>{device.owner_name}</TableCell> : null}
                     <TableCell>
                       <Badge variant={device.is_online ? "default" : "outline"}>{device.is_online ? "Online" : timeAgo(device.last_seen_at)}</Badge>

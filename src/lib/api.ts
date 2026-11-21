@@ -1,4 +1,4 @@
-import type { Capture, Device, FirmwareRelease, Metric, Page, SeriesPoint, TokenResponse, User } from "@/lib/types"
+import type { Annotation, Capture, Device, FirmwareRelease, Metric, Page, SeriesPoint, Species, TokenResponse, TrainedModel, User } from "@/lib/types"
 
 const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -176,9 +176,9 @@ export const api = {
   me: () => request<User>("/api/v1/auth/me"),
   devices: (ownerId?: string) => request<Page<Device>>(withQuery("/api/v1/devices", { limit: 100, owner_id: ownerId })),
   device: (id: string) => request<Device>(`/api/v1/devices/${id}`),
-  createDevice: (body: { code: string; name: string; location?: string; owner_id?: string; frame_size?: string; jpeg_quality?: number }) =>
+  createDevice: (body: { code: string; name: string; location?: string; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number }) =>
     request<Device>("/api/v1/devices", { method: "POST", body: JSON.stringify(body) }),
-  updateDevice: (id: string, body: { name?: string; location?: string | null; owner_id?: string; frame_size?: string; jpeg_quality?: number }) =>
+  updateDevice: (id: string, body: { name?: string; location?: string | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null }) =>
     request<Device>(`/api/v1/devices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number }) =>
     request<Page<Capture>>(withQuery("/api/v1/captures", params)),
@@ -195,6 +195,15 @@ export const api = {
     request<User>("/api/v1/users", { method: "POST", body: JSON.stringify(body) }),
   updateUser: (id: string, body: { name?: string; email?: string; password?: string; is_active?: boolean }) =>
     request<User>(`/api/v1/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  species: () => request<Species[]>("/api/v1/species"),
+  createSpecies: (name: string) => request<Species>("/api/v1/species", { method: "POST", body: JSON.stringify({ name }) }),
+  annotations: (captureId: string) => request<Annotation[]>(`/api/v1/captures/${captureId}/annotations`),
+  createAnnotation: (captureId: string, body: { species_id: string; x: number; y: number; width: number; height: number }) =>
+    request<Annotation>(`/api/v1/captures/${captureId}/annotations`, { method: "POST", body: JSON.stringify(body) }),
+  deleteAnnotation: (captureId: string, annotationId: string) =>
+    request<null>(`/api/v1/captures/${captureId}/annotations/${annotationId}`, { method: "DELETE" }),
+  models: () => request<TrainedModel[]>("/api/v1/models"),
+  trainModel: () => request<TrainedModel>("/api/v1/models/train", { method: "POST" }),
   firmware: () => request<FirmwareRelease[]>("/api/v1/firmware"),
   publishFirmware: (body: FormData) => request<{ items: FirmwareRelease[] }>("/api/v1/firmware", { method: "POST", body }),
 }

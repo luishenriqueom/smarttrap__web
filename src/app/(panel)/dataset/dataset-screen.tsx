@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { MarkedPhoto } from "@/components/marked-photo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -108,10 +109,14 @@ export default function DatasetPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Dataset</h1>
           <p className="text-sm text-muted-foreground">Fotos recebidas na fase de coleta. As excluídas ficam fora da exportação.</p>
         </div>
-        <Button type="button" onClick={() => setExportOpen(true)}>
-          Exportar Dataset
-        </Button>
+        <div className="flex gap-2">
+          {readOnly ? null : <TrainButton />}
+          <Button type="button" onClick={() => setExportOpen(true)}>
+            Exportar Dataset
+          </Button>
+        </div>
       </div>
+      {readOnly ? null : <SpeciesBar />}
       <div className="grid gap-3 md:grid-cols-4">
         <div className="space-y-2 md:col-span-2">
           <Label>Armadilha</Label>
@@ -374,6 +379,76 @@ function ExportDialog({
   )
 }
 
+function modelStatus(status: string) {
+  if (status === "training") return "treinando"
+  if (status === "ready") return "pronto"
+  if (status === "failed") return "falhou"
+  return "aguardando"
+}
+
+function TrainButton() {
+  const queryClient = useQueryClient()
+  const models = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.models(),
+    refetchInterval: (query) => (query.state.data?.some((model) => model.status === "training") ? 4000 : false),
+  })
+  const train = useMutation({
+    mutationFn: () => api.trainModel(),
+    onSuccess: () => {
+      toast.success("Treino iniciado")
+      queryClient.invalidateQueries({ queryKey: ["models"] })
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível treinar"),
+  })
+  const latest = models.data?.[0]
+  return (
+    <div className="flex items-center gap-2">
+      <Button type="button" variant="outline" disabled={train.isPending || latest?.status === "training"} onClick={() => train.mutate()}>
+        {latest?.status === "training" ? "Treinando..." : "Treinar FOMO"}
+      </Button>
+      {latest ? (
+        <span className="text-xs text-muted-foreground">
+          {modelStatus(latest.status)}
+          {latest.status === "failed" && latest.error ? `: ${latest.error}` : ""}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function SpeciesBar() {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState("")
+  const species = useQuery({ queryKey: ["species"], queryFn: () => api.species() })
+  const create = useMutation({
+    mutationFn: () => api.createSpecies(name.trim()),
+    onSuccess: () => {
+      setName("")
+      queryClient.invalidateQueries({ queryKey: ["species"] })
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível cadastrar a espécie"),
+  })
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (name.trim()) create.mutate()
+      }}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="species-name">Espécie</Label>
+        <Input id="species-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da praga" />
+      </div>
+      <Button type="submit" variant="outline" disabled={create.isPending || name.trim() === ""}>
+        Adicionar
+      </Button>
+      <p className="pb-2 text-sm text-muted-foreground">{(species.data ?? []).map((item) => item.name).join(", ") || "Nenhuma espécie cadastrada."}</p>
+    </form>
+  )
+}
+
 function CaptureImage({ id, alt, className }: { id: string; alt: string; className?: string }) {
   const [src, setSrc] = useState<string | null>(null)
   useEffect(() => {
@@ -468,6 +543,31 @@ function CaptureDialog({
   const [manualCount, setManualCount] = useState(capture.manual_count === null ? "" : String(capture.manual_count))
   const [label, setLabel] = useState(capture.label)
   const [notes, setNotes] = useState(capture.notes ?? "")
+  const [speciesId, setSpeciesId] = useState("")
+  const species = useQuery({ queryKey: ["species"], queryFn: () => api.species() })
+  const boxes = useQuery({ queryKey: ["annotations", capture.id], queryFn: () => api.annotations(capture.id) })
+  useEffect(() => {
+    if (!speciesId && species.data && species.data.length > 0) setSpeciesId(species.data[0].id)
+  }, [species.data, speciesId])
+  const mark = useMutation({
+    mutationFn: (box: { x: number; y: number; width: number; height: number }) =>
+      api.createAnnotation(capture.id, { species_id: speciesId, ...box }),
+    onSuccess: (created) => {
+      setLabel("with_pest")
+      queryClient.invalidateQueries({ queryKey: ["annotations", capture.id] })
+      queryClient.invalidateQueries({ queryKey: ["captures"] })
+      toast.success(`Marcação de ${created.species_name} salva`)
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível marcar"),
+  })
+  const unmark = useMutation({
+    mutationFn: (annotationId: string) => api.deleteAnnotation(capture.id, annotationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["annotations", capture.id] })
+      queryClient.invalidateQueries({ queryKey: ["captures"] })
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível remover"),
+  })
   const mutation = useMutation({
     mutationFn: () =>
       api.updateCapture(capture.id, {
@@ -486,7 +586,27 @@ function CaptureDialog({
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div className="grid max-h-[90vh] w-full max-w-4xl gap-4 overflow-auto rounded-xl bg-card p-4 md:grid-cols-[1.4fr_1fr]" onClick={(event) => event.stopPropagation()}>
-        <CaptureImage id={capture.id} alt={capture.device_name} className="max-h-[70vh] w-full rounded-lg object-contain bg-muted" />
+        <div className="space-y-2">
+          <MarkedPhoto
+            id={capture.id}
+            alt={capture.device_name}
+            boxes={boxes.data ?? []}
+            editable={!readOnly}
+            onAdd={(box) => {
+              if (!speciesId) {
+                toast.error("Cadastre uma espécie antes de marcar")
+                return
+              }
+              mark.mutate(box)
+            }}
+            onRemove={(annotationId) => unmark.mutate(annotationId)}
+          />
+          {readOnly ? (
+            <p className="text-xs text-muted-foreground">As caixas mostram as marcações humanas e as detecções da armadilha.</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Clique para um quadrado de 32 px. Arraste para desenhar a caixa no tamanho da praga.</p>
+          )}
+        </div>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -498,6 +618,26 @@ function CaptureDialog({
             <h2 className="text-lg font-semibold">{capture.device_name}</h2>
             <p className="text-sm text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
             {captureCameraLabel(capture) ? <p className="text-sm text-muted-foreground">{captureCameraLabel(capture)}</p> : null}
+          </div>
+          <div className="space-y-2">
+            <Label>Espécie da próxima marcação</Label>
+            <Select
+              items={Object.fromEntries((species.data ?? []).map((item) => [item.id, item.name]))}
+              value={speciesId || null}
+              onValueChange={(value) => value && setSpeciesId(value)}
+              disabled={readOnly || (species.data ?? []).length === 0}
+            >
+              <SelectTrigger className="w-full" disabled={readOnly}>
+                <SelectValue placeholder="Nenhuma espécie" />
+              </SelectTrigger>
+              <SelectContent>
+                {(species.data ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="count">Contagem manual</Label>
