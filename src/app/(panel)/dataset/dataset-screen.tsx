@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Info } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { MarkedPhoto } from "@/components/marked-photo"
@@ -797,6 +798,22 @@ function CaptureDialog({
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível remover"),
   })
+  const revise = useMutation({
+    mutationFn: (patch: { id: string; species_id: string; x: number; y: number; width: number; height: number }) =>
+      api.updateAnnotation(capture.id, patch.id, {
+        species_id: patch.species_id,
+        x: patch.x,
+        y: patch.y,
+        width: patch.width,
+        height: patch.height,
+      }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<typeof updated[]>(["annotations", capture.id], (current) =>
+        current?.map((item) => (item.id === updated.id ? updated : item)),
+      )
+    },
+    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível ajustar a marcação"),
+  })
   const mutation = useMutation({
     mutationFn: () =>
       api.updateCapture(capture.id, {
@@ -813,13 +830,15 @@ function CaptureDialog({
   })
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="grid max-h-[90vh] w-full max-w-4xl gap-4 overflow-auto rounded-xl bg-card p-4 md:grid-cols-[1.4fr_1fr]" onClick={(event) => event.stopPropagation()}>
-        <div className="space-y-2">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3" onClick={onClose}>
+      <div className="flex max-h-[94vh] w-full max-w-[min(96vw,1600px)] flex-col overflow-hidden rounded-xl bg-card md:h-[94vh] md:w-max md:flex-row" onClick={(event) => event.stopPropagation()}>
+        <div className="flex min-h-0 min-w-0">
           <MarkedPhoto
             id={capture.id}
             alt={capture.device_name}
             boxes={boxes.data ?? []}
+            species={species.data ?? []}
+            frame="dialog"
             editable={!readOnly}
             onAdd={(box) => {
               if (!speciesId) {
@@ -828,16 +847,14 @@ function CaptureDialog({
               }
               mark.mutate(box)
             }}
+            onUpdate={(annotationId, box) =>
+              revise.mutateAsync({ id: annotationId, ...box }).then(() => undefined)
+            }
             onRemove={(annotationId) => unmark.mutate(annotationId)}
           />
-          {readOnly ? (
-            <p className="text-xs text-muted-foreground">As caixas mostram as marcações humanas e as detecções da armadilha.</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">Clique para um quadrado de 32 px. Arraste para desenhar a caixa no tamanho da praga.</p>
-          )}
         </div>
         <form
-          className="space-y-4"
+          className="flex min-h-0 w-full shrink-0 flex-col gap-4 overflow-auto p-4 md:w-[22rem]"
           onSubmit={(event) => {
             event.preventDefault()
             if (!readOnly) mutation.mutate()
@@ -894,6 +911,14 @@ function CaptureDialog({
             <Label htmlFor="notes">Notas</Label>
             <Textarea id="notes" value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} />
           </div>
+          <p className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              {readOnly
+                ? "As caixas mostram as marcações humanas e as detecções da armadilha."
+                : "Clique para marcar. Arraste a caixa para movê-la e o canto para mudar o tamanho. A espécie de cada caixa fica na lista dela."}
+            </span>
+          </p>
           <div className="flex gap-2">
             <Button type="submit" disabled={readOnly || mutation.isPending}>
               Salvar

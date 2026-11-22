@@ -201,6 +201,8 @@ export const api = {
   annotations: (captureId: string) => request<Annotation[]>(`/api/v1/captures/${captureId}/annotations`),
   createAnnotation: (captureId: string, body: { species_id: string; x: number; y: number; width: number; height: number }) =>
     request<Annotation>(`/api/v1/captures/${captureId}/annotations`, { method: "POST", body: JSON.stringify(body) }),
+  updateAnnotation: (captureId: string, annotationId: string, body: { species_id: string; x: number; y: number; width: number; height: number }) =>
+    request<Annotation>(`/api/v1/captures/${captureId}/annotations/${annotationId}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteAnnotation: (captureId: string, annotationId: string) =>
     request<null>(`/api/v1/captures/${captureId}/annotations/${annotationId}`, { method: "DELETE" }),
   models: () => request<TrainedModel[]>("/api/v1/models"),
