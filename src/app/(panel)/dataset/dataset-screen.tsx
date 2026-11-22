@@ -48,6 +48,7 @@ export default function DatasetPage() {
   const [picked, setPicked] = useState<string[]>([])
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const filters = useRef({ deviceId, from, to, offset })
   filters.current = { deviceId, from, to, offset }
   const waiting = useRef<Capture[]>([])
@@ -111,6 +112,11 @@ export default function DatasetPage() {
         </div>
         <div className="flex gap-2">
           {readOnly ? null : <TrainButton />}
+          {readOnly ? null : (
+            <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+              Importar fotos
+            </Button>
+          )}
           <Button type="button" onClick={() => setExportOpen(true)}>
             Exportar Dataset
           </Button>
@@ -265,6 +271,20 @@ export default function DatasetPage() {
           }}
         />
       ) : null}
+      {importOpen ? (
+        <ImportDialog
+          devices={devices.data?.items ?? []}
+          initialDeviceId={deviceId}
+          onClose={() => setImportOpen(false)}
+          onImported={(importedDeviceId) => {
+            setDeviceId(importedDeviceId)
+            setOffset(0)
+            setUnseen(0)
+            queryClient.invalidateQueries({ queryKey: ["captures"] })
+            queryClient.invalidateQueries({ queryKey: ["devices"] })
+          }}
+        />
+      ) : null}
       {exportOpen ? (
         <ExportDialog
           devices={devices.data?.items ?? []}
@@ -274,6 +294,215 @@ export default function DatasetPage() {
           onClose={() => setExportOpen(false)}
         />
       ) : null}
+    </div>
+  )
+}
+
+function jpegFiles(list: FileList | File[] | null) {
+  return [...(list ?? [])]
+    .filter((file) => file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+}
+
+function readDropEntry(entry: FileSystemEntry): Promise<File[]> {
+  if (entry.isFile) {
+    return new Promise((resolve) => {
+      ;(entry as FileSystemFileEntry).file((file) => resolve([file]))
+    })
+  }
+  if (!entry.isDirectory) return Promise.resolve([])
+  const reader = (entry as FileSystemDirectoryEntry).createReader()
+  return new Promise((resolve) => {
+    const files: File[] = []
+    const readBatch = () => {
+      reader.readEntries((batch) => {
+        if (batch.length === 0) {
+          resolve(files)
+          return
+        }
+        void Promise.all(batch.map((child) => readDropEntry(child))).then((nested) => {
+          files.push(...nested.flat())
+          readBatch()
+        })
+      })
+    }
+    readBatch()
+  })
+}
+
+async function filesFromDrop(transfer: DataTransfer) {
+  const entries = [...transfer.items].map((item) => item.webkitGetAsEntry?.() ?? null).filter((entry): entry is FileSystemEntry => entry !== null)
+  if (entries.length === 0) return jpegFiles(transfer.files)
+  const nested = await Promise.all(entries.map((entry) => readDropEntry(entry)))
+  return jpegFiles(nested.flat())
+}
+
+function ImportDialog({
+  devices,
+  initialDeviceId,
+  onClose,
+  onImported,
+}: {
+  devices: Device[]
+  initialDeviceId: string
+  onClose: () => void
+  onImported: (deviceId: string) => void
+}) {
+  const [deviceId, setDeviceId] = useState(initialDeviceId)
+  const [files, setFiles] = useState<File[]>([])
+  const [done, setDone] = useState(0)
+  const [pending, setPending] = useState(false)
+  const [over, setOver] = useState(false)
+  const photos = useRef<HTMLInputElement>(null)
+  const folder = useRef<HTMLInputElement>(null)
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={pending ? undefined : onClose}>
+      <div className="w-full max-w-md rounded-xl bg-card p-4" onClick={(event) => event.stopPropagation()}>
+        <h2 className="text-lg font-semibold">Importar fotos</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          As fotos entram no dataset da armadilha escolhida, com o nome do arquivo nas notas e a data do arquivo. JPEG de até 5 MB.
+        </p>
+        <form
+          className="mt-4 space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!deviceId) {
+              toast.error("Escolha a armadilha")
+              return
+            }
+            if (files.length === 0) {
+              toast.error("Escolha ao menos uma foto JPEG")
+              return
+            }
+            setPending(true)
+            setDone(0)
+            const batchSize = 12
+            const run = async () => {
+              let imported = 0
+              let skipped = 0
+              for (let start = 0; start < files.length; start += batchSize) {
+                const slice = files.slice(start, start + batchSize)
+                const body = new FormData()
+                body.set("device_id", deviceId)
+                for (const file of slice) {
+                  body.append("images", file)
+                  body.append("captured_at", new Date(file.lastModified || Date.now()).toISOString())
+                }
+                const result = await api.importCaptures(body)
+                imported += result.imported
+                skipped += result.skipped
+                setDone(Math.min(files.length, start + slice.length))
+              }
+              return { imported, skipped }
+            }
+            run()
+              .then(({ imported, skipped }) => {
+                toast.success(skipped > 0 ? `${imported} fotos importadas, ${skipped} ignoradas` : `${imported} fotos importadas`)
+                onImported(deviceId)
+                onClose()
+              })
+              .catch((error) => {
+                toast.error(error instanceof ApiError ? error.message : "Não foi possível importar")
+                onImported(deviceId)
+                setPending(false)
+              })
+          }}
+        >
+          <div className="space-y-2">
+            <Label>Armadilha</Label>
+            <Select
+              items={Object.fromEntries(devices.map((device) => [device.id, device.name]))}
+              value={deviceId || null}
+              onValueChange={(value) => value && setDeviceId(value)}
+              disabled={pending || devices.length === 0}
+            >
+              <SelectTrigger className="w-full" disabled={pending}>
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                {devices.map((device) => (
+                  <SelectItem key={device.id} value={device.id}>
+                    {device.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div
+            onDragEnter={(event) => {
+              event.preventDefault()
+              if (!pending) setOver(true)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              if (!pending) setOver(true)
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false)
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              setOver(false)
+              if (pending) return
+              void filesFromDrop(event.dataTransfer).then((dropped) => {
+                if (dropped.length === 0) {
+                  toast.error("Solte fotos JPEG")
+                  return
+                }
+                setFiles(dropped)
+              })
+            }}
+            className={`rounded-lg border border-dashed px-4 py-5 text-center ${over ? "border-primary bg-primary/5" : "border-border"}`}
+          >
+            <p className="text-sm">{over ? "Solte para adicionar" : "Solte as fotos JPEG aqui"}</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Button type="button" variant="outline" disabled={pending} onClick={() => photos.current?.click()}>
+              Escolher fotos
+            </Button>
+            <Button type="button" variant="outline" disabled={pending} onClick={() => folder.current?.click()}>
+              Escolher pasta
+            </Button>
+            <input
+              ref={photos}
+              type="file"
+              accept="image/jpeg,.jpg,.jpeg"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                setFiles(jpegFiles(event.target.files))
+                event.target.value = ""
+              }}
+            />
+            <input
+              ref={folder}
+              type="file"
+              accept="image/jpeg,.jpg,.jpeg"
+              multiple
+              className="hidden"
+              // The folder picker is a browser extension of the file input.
+              {...{ webkitdirectory: "", directory: "" }}
+              onChange={(event) => {
+                setFiles(jpegFiles(event.target.files))
+                event.target.value = ""
+              }}
+            />
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {files.length === 0 ? "Nenhuma foto selecionada." : `${files.length} fotos JPEG`}
+            {pending ? ` · ${done} de ${files.length}` : ""}
+          </p>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={pending || !deviceId || files.length === 0}>
+              {pending ? "Importando..." : "Importar"}
+            </Button>
+            <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

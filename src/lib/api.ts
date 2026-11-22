@@ -184,6 +184,7 @@ export const api = {
     request<Page<Capture>>(withQuery("/api/v1/captures", params)),
   updateCapture: (id: string, body: { manual_count?: number | null; label?: string; notes?: string | null }) =>
     request<Capture>(`/api/v1/captures/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  importCaptures: (body: FormData) => request<{ imported: number; skipped: number }>("/api/v1/captures/import", { method: "POST", body }),
   discardCaptures: (ids: string[]) => request<{ discarded: number }>("/api/v1/captures/discard", { method: "POST", body: JSON.stringify({ ids }) }),
   restoreCaptures: (ids: string[]) => request<{ restored: number }>("/api/v1/captures/restore", { method: "POST", body: JSON.stringify({ ids }) }),
   metrics: (params: { device_id: string; from?: string; to?: string; limit?: number }) =>
