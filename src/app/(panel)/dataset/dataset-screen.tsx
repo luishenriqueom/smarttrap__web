@@ -19,11 +19,13 @@ import type { Capture, Device, Page } from "@/lib/types"
 
 const PAGE_SIZE = 12
 
-function captureMatches(capture: Capture, deviceId: string, from: string, to: string) {
+function captureMatches(capture: Capture, deviceId: string, from: string, to: string, marked: "" | "yes" | "no") {
   if (deviceId && capture.device_id !== deviceId) return false
   const taken = new Date(capture.captured_at).getTime()
   if (from && taken < new Date(from).getTime()) return false
   if (to && taken > new Date(`${to}T23:59:59`).getTime()) return false
+  if (marked === "yes" && capture.mark_count < 1) return false
+  if (marked === "no" && capture.mark_count > 0) return false
   return true
 }
 
@@ -43,6 +45,7 @@ export default function DatasetPage() {
   const [deviceId, setDeviceId] = useState("")
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
+  const [marked, setMarked] = useState<"" | "yes" | "no">("")
   const [offset, setOffset] = useState(0)
   const [unseen, setUnseen] = useState(0)
   const [selected, setSelected] = useState<Capture | null>(null)
@@ -50,18 +53,19 @@ export default function DatasetPage() {
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const filters = useRef({ deviceId, from, to, offset })
-  filters.current = { deviceId, from, to, offset }
+  const filters = useRef({ deviceId, from, to, marked, offset })
+  filters.current = { deviceId, from, to, marked, offset }
   const waiting = useRef<Capture[]>([])
   const seen = useRef(new Set<string>())
   const devices = useQuery({ queryKey: ["devices"], queryFn: () => api.devices() })
   const captures = useQuery({
-    queryKey: ["captures", deviceId, from, to, offset],
+    queryKey: ["captures", deviceId, from, to, marked, offset],
     queryFn: () =>
       api.captures({
         device_id: deviceId || undefined,
         from: from ? new Date(from).toISOString() : undefined,
         to: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+        marked: marked === "" ? undefined : marked === "yes",
         limit: PAGE_SIZE,
         offset,
       }),
@@ -75,27 +79,27 @@ export default function DatasetPage() {
   useEffect(() => {
     waiting.current = []
     setPicked([])
-  }, [deviceId, from, to])
+  }, [deviceId, from, to, marked])
 
   useEffect(() => {
     if (!captures.data || waiting.current.length === 0) return
     const queued = waiting.current
     waiting.current = []
     for (const capture of queued) {
-      queryClient.setQueriesData<Page<Capture>>({ queryKey: ["captures", deviceId, from, to] }, (page) =>
+      queryClient.setQueriesData<Page<Capture>>({ queryKey: ["captures", deviceId, from, to, marked] }, (page) =>
         page ? placeCapture(page, capture) : page,
       )
     }
-  }, [captures.data, deviceId, from, to, queryClient])
+  }, [captures.data, deviceId, from, to, marked, queryClient])
 
   useEffect(() => {
     const controller = new AbortController()
     void subscribeCaptures((capture) => {
       const current = filters.current
-      if (!captureMatches(capture, current.deviceId, current.from, current.to)) return
+      if (!captureMatches(capture, current.deviceId, current.from, current.to, current.marked)) return
       if (seen.current.has(capture.id)) return
       seen.current.add(capture.id)
-      const prefix = ["captures", current.deviceId, current.from, current.to] as const
+      const prefix = ["captures", current.deviceId, current.from, current.to, current.marked] as const
       const loaded = queryClient.getQueryData<Page<Capture>>([...prefix, current.offset])
       if (!loaded) waiting.current = [capture, ...waiting.current.filter((item) => item.id !== capture.id)].slice(0, 24)
       queryClient.setQueriesData<Page<Capture>>({ queryKey: prefix }, (page) => (page ? placeCapture(page, capture) : page))
@@ -124,7 +128,7 @@ export default function DatasetPage() {
         </div>
       </div>
       {readOnly ? null : <SpeciesBar />}
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div className="space-y-2 md:col-span-2">
           <Label>Armadilha</Label>
           <Select
@@ -159,6 +163,27 @@ export default function DatasetPage() {
         <div className="space-y-2">
           <Label htmlFor="to">Até</Label>
           <Input id="to" type="date" value={to} onChange={(event) => { setTo(event.target.value); setOffset(0); setUnseen(0) }} />
+        </div>
+        <div className="space-y-2">
+          <Label>Marcações</Label>
+          <Select
+            items={{ all: "Todas", yes: "Com marcação", no: "Sem marcação" }}
+            value={marked || "all"}
+            onValueChange={(value) => {
+              setMarked(!value || value === "all" ? "" : value === "no" ? "no" : "yes")
+              setOffset(0)
+              setUnseen(0)
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="yes">Com marcação</SelectItem>
+              <SelectItem value="no">Sem marcação</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -232,6 +257,9 @@ export default function DatasetPage() {
                   <p className="text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
                   {resolution ? <p className="text-xs text-muted-foreground">{resolution}</p> : null}
                   <p className="text-xs">{labelText(capture.label)}</p>
+                  <p className={`text-xs ${capture.mark_count > 0 ? "font-medium" : "text-muted-foreground"}`}>
+                    {(capture.mark_count ?? 0) === 1 ? "1 marcação" : (capture.mark_count ?? 0) > 1 ? `${capture.mark_count} marcações` : "Sem marcação"}
+                  </p>
                 </CardContent>
               </button>
             </Card>

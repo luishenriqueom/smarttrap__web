@@ -49,7 +49,7 @@ function messageFrom(data: unknown) {
   return "Não foi possível concluir a operação"
 }
 
-function withQuery(path: string, params: Record<string, string | number | undefined>) {
+function withQuery(path: string, params: Record<string, string | number | boolean | undefined>) {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") query.set(key, String(value))
@@ -180,7 +180,7 @@ export const api = {
     request<Device>("/api/v1/devices", { method: "POST", body: JSON.stringify(body) }),
   updateDevice: (id: string, body: { name?: string; location?: string | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null }) =>
     request<Device>(`/api/v1/devices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number }) =>
+  captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number; marked?: boolean }) =>
     request<Page<Capture>>(withQuery("/api/v1/captures", params)),
   updateCapture: (id: string, body: { manual_count?: number | null; label?: string; notes?: string | null }) =>
     request<Capture>(`/api/v1/captures/${id}`, { method: "PATCH", body: JSON.stringify(body) }),

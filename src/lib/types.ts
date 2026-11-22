@@ -61,6 +61,7 @@ export type Capture = {
   manual_count: number | null
   label: "unlabeled" | "with_pest" | "without_pest"
   notes: string | null
+  mark_count: number
 }
 
 export type SeriesPoint = {
