@@ -180,6 +180,7 @@ export const api = {
     request<Device>("/api/v1/devices", { method: "POST", body: JSON.stringify(body) }),
   updateDevice: (id: string, body: { name?: string; location?: string | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null }) =>
     request<Device>(`/api/v1/devices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  requestClockSync: (id: string) => request<Device>(`/api/v1/devices/${id}/clock-sync`, { method: "POST" }),
   captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number; marked?: boolean }) =>
     request<Page<Capture>>(withQuery("/api/v1/captures", params)),
   updateCapture: (id: string, body: { manual_count?: number | null; label?: string; notes?: string | null }) =>

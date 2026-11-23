@@ -17,6 +17,16 @@ export function formatPercent(value: number | null) {
   return `${Math.round(value * 100)}%`
 }
 
+export function formatClockSkew(clock: string | null, received: string | null) {
+  if (!received) return "Ainda sem informe"
+  if (!clock) return "Não acertado"
+  const delta = Math.round((new Date(clock).getTime() - new Date(received).getTime()) / 1000)
+  const abs = Math.abs(delta)
+  if (abs < 120) return "Em dia"
+  const amount = abs < 3600 ? `${Math.round(abs / 60)} min` : `${Math.round(abs / 3600)} h`
+  return delta > 0 ? `Adiantado ${amount}` : `Atrasado ${amount}`
+}
+
 export function timeAgo(value: string | null) {
   if (!value) return "sem comunicação"
   const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { api } from "@/lib/api"
+import { ApiError, api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { frameSizeLabel } from "@/lib/framesize"
-import { formatDateTime, formatNumber, formatPercent, periodRange } from "@/lib/format"
+import { formatClockSkew, formatDateTime, formatNumber, formatPercent, periodRange } from "@/lib/format"
 import type { Capture, Period } from "@/lib/types"
 
 const periods: { value: Period; label: string }[] = [
@@ -27,6 +27,7 @@ export default function TrapDetailPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [period, setPeriod] = useState<Period>("7d")
   const range = periodRange(period)
   const device = useQuery({ queryKey: ["device", id], queryFn: () => api.device(id), enabled: Boolean(id) })
@@ -34,6 +35,13 @@ export default function TrapDetailPage() {
     queryKey: ["captures", id, "recent"],
     queryFn: () => api.captures({ device_id: id, limit: 6 }),
     enabled: Boolean(id),
+  })
+  const syncClock = useMutation({
+    mutationFn: () => api.requestClockSync(id),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["device", id], updated)
+      queryClient.invalidateQueries({ queryKey: ["devices"] })
+    },
   })
   const metrics = useQuery({
     queryKey: ["metrics", id, period],
@@ -84,6 +92,37 @@ export default function TrapDetailPage() {
           </SelectContent>
         </Select>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Relógio</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm">
+            {current.last_clock_received_at
+              ? current.last_clock_at
+                ? `Último horário: ${formatDateTime(current.last_clock_at)}`
+                : "O último contato chegou sem horário acertado."
+              : "A armadilha ainda não informou o horário."}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Recebido em {formatDateTime(current.last_clock_received_at)} · {formatClockSkew(current.last_clock_at, current.last_clock_received_at)}
+          </p>
+          {current.clock_sync_requested ? (
+            <p className="text-sm">Ajuste pendente. A armadilha recebe o horário do servidor no próximo contato.</p>
+          ) : null}
+          {user && !user.is_demo ? (
+            <Button size="sm" disabled={current.clock_sync_requested || syncClock.isPending} onClick={() => syncClock.mutate()}>
+              {syncClock.isPending ? "Enviando..." : "Ajustar relógio"}
+            </Button>
+          ) : null}
+          {syncClock.isError ? (
+            <p className="text-sm text-destructive">
+              {syncClock.error instanceof ApiError ? syncClock.error.message : "Não foi possível pedir o ajuste."}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

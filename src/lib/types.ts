@@ -44,6 +44,9 @@ export type Device = {
   jpeg_quality: number
   sleep_seconds: number
   model_id: string | null
+  last_clock_at: string | null
+  last_clock_received_at: string | null
+  clock_sync_requested: boolean
 }
 
 export type Capture = {
