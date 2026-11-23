@@ -47,6 +47,8 @@ export type Device = {
   last_clock_at: string | null
   last_clock_received_at: string | null
   clock_sync_requested: boolean
+  operating_mode: "collect" | "infer"
+  reported_mode: "collect" | "infer" | null
 }
 
 export type Capture = {

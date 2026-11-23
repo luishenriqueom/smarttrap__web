@@ -21,6 +21,7 @@ export type TrapDraft = {
   frame_size: string
   jpeg_quality: number
   sleep_seconds: number
+  operating_mode: string
   model_id: string | null
 }
 
@@ -44,6 +45,7 @@ export function TrapForm({
   const [frameSize, setFrameSize] = useState(initial?.frame_size ?? "svga")
   const [jpegQuality, setJpegQuality] = useState(String(initial?.jpeg_quality ?? 12))
   const [sleepMinutes, setSleepMinutes] = useState(String(Math.round((initial?.sleep_seconds ?? 300) / 60)))
+  const [operatingMode, setOperatingMode] = useState(initial?.operating_mode ?? "collect")
   const [modelId, setModelId] = useState(initial?.model_id ?? "")
   const models = useQuery({ queryKey: ["models"], queryFn: () => api.models(), enabled: Boolean(initial) })
   const readyModels = (models.data ?? []).filter((model): model is TrainedModel => model.status === "ready")
@@ -65,6 +67,7 @@ export function TrapForm({
           frame_size: frameSize,
           jpeg_quality: quality,
           sleep_seconds: sleepSeconds,
+          operating_mode: operatingMode,
           model_id: modelId || null,
           ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
         })
@@ -76,6 +79,7 @@ export function TrapForm({
         frame_size: frameSize,
         jpeg_quality: quality,
         sleep_seconds: sleepSeconds,
+        operating_mode: operatingMode,
         ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
       })
     },
@@ -158,6 +162,23 @@ export function TrapForm({
               required
             />
             <p className="text-xs text-muted-foreground">Depois de cada ciclo. O padrão é 5 minutos. Vale no fim do ciclo em que a armadilha buscar a configuração.</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Modo</Label>
+            <Select
+              items={{ collect: "Coleta", infer: "Inferência" }}
+              value={operatingMode}
+              onValueChange={(value) => value && setOperatingMode(value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="collect">Coleta</SelectItem>
+                <SelectItem value="infer">Inferência</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Vale no próximo ciclo. A inferência só roda no firmware que contém o modelo.</p>
           </div>
           {initial ? (
             <div className="space-y-2">

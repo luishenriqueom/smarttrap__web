@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { frameSizeLabel } from "@/lib/framesize"
-import { formatClockSkew, timeAgo } from "@/lib/format"
+import { formatClockSkew, modeStatus, timeAgo } from "@/lib/format"
 import { TrapForm } from "./trap-form"
 
 export default function TrapsPage() {
@@ -108,6 +108,7 @@ function TrapsScreen() {
                   <TableHead>Resolução</TableHead>
                   <TableHead>JPEG</TableHead>
                   <TableHead>Sono</TableHead>
+                  <TableHead>Modo</TableHead>
                   <TableHead>Relógio</TableHead>
                   {user?.role === "superadmin" ? <TableHead>Dono</TableHead> : null}
                   <TableHead>Estado</TableHead>
@@ -123,6 +124,7 @@ function TrapsScreen() {
                     <TableCell>{frameSizeLabel(device.frame_size)}</TableCell>
                     <TableCell>{device.jpeg_quality}</TableCell>
                     <TableCell>{Math.round(device.sleep_seconds / 60)} min</TableCell>
+                    <TableCell>{modeStatus(device.operating_mode, device.reported_mode)}</TableCell>
                     <TableCell>{formatClockSkew(device.last_clock_at, device.last_clock_received_at)}</TableCell>
                     {user?.role === "superadmin" ? <TableCell>{device.owner_name}</TableCell> : null}
                     <TableCell>

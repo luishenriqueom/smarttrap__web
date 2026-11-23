@@ -17,6 +17,17 @@ export function formatPercent(value: number | null) {
   return `${Math.round(value * 100)}%`
 }
 
+export function modeLabel(mode: string | null) {
+  if (mode === "infer") return "Inferência"
+  if (mode === "collect") return "Coleta"
+  return "—"
+}
+
+export function modeStatus(desired: string, reported: string | null) {
+  if (!reported || reported === desired) return modeLabel(desired)
+  return `${modeLabel(reported)} agora, ${modeLabel(desired).toLowerCase()} no próximo ciclo`
+}
+
 export function formatClockSkew(clock: string | null, received: string | null) {
   if (!received) return "Ainda sem informe"
   if (!clock) return "Não acertado"
