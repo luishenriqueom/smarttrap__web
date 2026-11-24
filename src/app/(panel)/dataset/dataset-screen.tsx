@@ -663,7 +663,7 @@ function TrainButton() {
   return (
     <div className="flex items-center gap-2">
       <Button type="button" variant="outline" disabled={train.isPending || latest?.status === "training"} onClick={() => train.mutate()}>
-        {latest?.status === "training" ? "Treinando..." : "Treinar FOMO"}
+        {latest?.status === "training" ? "Treinando..." : "Treinar Modelo"}
       </Button>
       {latest ? (
         <span className="text-xs text-muted-foreground">
