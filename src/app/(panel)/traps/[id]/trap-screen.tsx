@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState } from "react"
+import { CaptureDialog, DiscardDialog } from "@/components/capture-dialog"
+import { LocationMap } from "@/components/location-map"
 import { MarkedPhoto } from "@/components/marked-photo"
 import { MetricChart } from "@/components/metric-chart"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +31,8 @@ export default function TrapDetailPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [period, setPeriod] = useState<Period>("7d")
+  const [selected, setSelected] = useState<Capture | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null)
   const range = periodRange(period)
   const device = useQuery({ queryKey: ["device", id], queryFn: () => api.device(id), enabled: Boolean(id) })
   const photos = useQuery({
@@ -93,6 +97,20 @@ export default function TrapDetailPage() {
         </Select>
       </div>
 
+      {current.latitude != null && current.longitude != null ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Localização</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <LocationMap latitude={current.latitude} longitude={current.longitude} readOnly />
+            <p className="text-sm text-muted-foreground">
+              {current.latitude.toFixed(5)}, {current.longitude.toFixed(5)}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Relógio</CardTitle>
@@ -134,31 +152,21 @@ export default function TrapDetailPage() {
           {photos.data && photos.data.items.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {photos.data.items.map((capture) => (
-                <RecentPhoto key={capture.id} capture={capture} />
+                <RecentPhoto key={capture.id} capture={capture} onOpen={() => setSelected(capture)} />
               ))}
             </div>
           ) : null}
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Contagem</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MetricChart period={period} deviceId={id} metric="pest_count" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Bateria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MetricChart period={period} deviceId={id} metric="battery_v" />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Contagem</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MetricChart period={period} deviceId={id} metric="pest_count" />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -176,7 +184,6 @@ export default function TrapDetailPage() {
                   <TableHead>Quando</TableHead>
                   <TableHead>Pragas</TableHead>
                   <TableHead>Confiança</TableHead>
-                  <TableHead>Bateria</TableHead>
                   <TableHead>RSSI</TableHead>
                   <TableHead>SNR</TableHead>
                 </TableRow>
@@ -187,7 +194,6 @@ export default function TrapDetailPage() {
                     <TableCell>{formatDateTime(metric.recorded_at)}</TableCell>
                     <TableCell>{formatNumber(metric.pest_count)}</TableCell>
                     <TableCell>{formatPercent(metric.confidence)}</TableCell>
-                    <TableCell>{metric.battery_v === null ? "—" : `${formatNumber(metric.battery_v, 2)} V`}</TableCell>
                     <TableCell>{formatNumber(metric.rssi)}</TableCell>
                     <TableCell>{formatNumber(metric.snr, 1)}</TableCell>
                   </TableRow>
@@ -197,16 +203,35 @@ export default function TrapDetailPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      {selected ? (
+        <CaptureDialog
+          capture={selected}
+          readOnly={!user || user.is_demo}
+          onClose={() => setSelected(null)}
+          onDelete={() => setPendingDelete([selected.id])}
+        />
+      ) : null}
+      {pendingDelete ? (
+        <DiscardDialog
+          ids={pendingDelete}
+          onClose={() => setPendingDelete(null)}
+          onDone={() => {
+            if (selected && pendingDelete.includes(selected.id)) setSelected(null)
+            setPendingDelete(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }
 
-function RecentPhoto({ capture }: { capture: Capture }) {
+function RecentPhoto({ capture, onOpen }: { capture: Capture; onOpen: () => void }) {
   const boxes = useQuery({ queryKey: ["annotations", capture.id], queryFn: () => api.annotations(capture.id) })
   return (
-    <figure className="space-y-1">
+    <button type="button" className="block w-full space-y-1 text-left" onClick={onOpen}>
       <MarkedPhoto id={capture.id} alt={capture.device_name} boxes={boxes.data ?? []} />
-      <figcaption className="text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</figcaption>
-    </figure>
+      <span className="block text-xs text-muted-foreground">{formatDateTime(capture.captured_at)}</span>
+    </button>
   )
 }

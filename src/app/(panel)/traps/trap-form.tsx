@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
+import { LocationMap } from "@/components/location-map"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,12 +18,21 @@ export type TrapDraft = {
   name: string
   code: string
   location: string | null
+  latitude: number | null
+  longitude: number | null
   owner_id: string
   frame_size: string
   jpeg_quality: number
   sleep_seconds: number
   operating_mode: string
   model_id: string | null
+}
+
+function coordinateValue(value: string) {
+  const text = value.trim()
+  if (text === "") return null
+  const parsed = Number(text)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 export function TrapForm({
@@ -41,6 +51,10 @@ export function TrapForm({
   const [name, setName] = useState(initial?.name ?? "")
   const [code, setCode] = useState(initial?.code ?? "")
   const [location, setLocation] = useState(initial?.location ?? "")
+  const [latitudeText, setLatitudeText] = useState(initial?.latitude == null ? "" : String(initial.latitude))
+  const [longitudeText, setLongitudeText] = useState(initial?.longitude == null ? "" : String(initial.longitude))
+  const latitude = coordinateValue(latitudeText)
+  const longitude = coordinateValue(longitudeText)
   const [ownerId, setOwnerId] = useState(initial?.owner_id ?? "")
   const [frameSize, setFrameSize] = useState(initial?.frame_size ?? "svga")
   const [jpegQuality, setJpegQuality] = useState(String(initial?.jpeg_quality ?? 12))
@@ -59,11 +73,25 @@ export function TrapForm({
       if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
         throw new ApiError(422, "O intervalo de sono deve ficar entre 1 minuto e 24 horas")
       }
+      if (latitude === undefined || longitude === undefined) {
+        throw new ApiError(422, "Informe uma latitude e uma longitude válidas")
+      }
+      if ((latitude === null) !== (longitude === null)) {
+        throw new ApiError(422, "Informe latitude e longitude juntas")
+      }
+      if (latitude !== null && (latitude < -90 || latitude > 90)) {
+        throw new ApiError(422, "A latitude deve ficar entre -90 e 90")
+      }
+      if (longitude !== null && (longitude < -180 || longitude > 180)) {
+        throw new ApiError(422, "A longitude deve ficar entre -180 e 180")
+      }
       const sleepSeconds = minutes * 60
       if (initial) {
         return api.updateDevice(initial.id, {
           name,
           location,
+          latitude,
+          longitude,
           frame_size: frameSize,
           jpeg_quality: quality,
           sleep_seconds: sleepSeconds,
@@ -76,6 +104,8 @@ export function TrapForm({
         name,
         code,
         location,
+        latitude,
+        longitude,
         frame_size: frameSize,
         jpeg_quality: quality,
         sleep_seconds: sleepSeconds,
@@ -112,8 +142,55 @@ export function TrapForm({
             <Input id="trap-code" value={code} onChange={(event) => setCode(event.target.value)} required disabled={Boolean(initial)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="trap-location">Local</Label>
-            <Input id="trap-location" value={location} onChange={(event) => setLocation(event.target.value)} />
+            <Label htmlFor="trap-location">Descrição do local</Label>
+            <Input id="trap-location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Talhão, fazenda ou referência" />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Ponto no mapa</Label>
+            <LocationMap
+              latitude={latitude ?? null}
+              longitude={longitude ?? null}
+              onChange={(point) => {
+                setLatitudeText(String(point.latitude))
+                setLongitudeText(String(point.longitude))
+              }}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="trap-latitude">Latitude</Label>
+                <Input
+                  id="trap-latitude"
+                  inputMode="decimal"
+                  value={latitudeText}
+                  onChange={(event) => setLatitudeText(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="trap-longitude">Longitude</Label>
+                <Input
+                  id="trap-longitude"
+                  inputMode="decimal"
+                  value={longitudeText}
+                  onChange={(event) => setLongitudeText(event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Clique no mapa para marcar onde a armadilha está. O ponto pode ser arrastado.</p>
+              {latitudeText !== "" || longitudeText !== "" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setLatitudeText("")
+                    setLongitudeText("")
+                  }}
+                >
+                  Remover ponto
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Resolução da câmera</Label>

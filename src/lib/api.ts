@@ -176,9 +176,9 @@ export const api = {
   me: () => request<User>("/api/v1/auth/me"),
   devices: (ownerId?: string) => request<Page<Device>>(withQuery("/api/v1/devices", { limit: 100, owner_id: ownerId })),
   device: (id: string) => request<Device>(`/api/v1/devices/${id}`),
-  createDevice: (body: { code: string; name: string; location?: string; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; operating_mode?: string }) =>
+  createDevice: (body: { code: string; name: string; location?: string; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; operating_mode?: string }) =>
     request<Device>("/api/v1/devices", { method: "POST", body: JSON.stringify(body) }),
-  updateDevice: (id: string, body: { name?: string; location?: string | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null; operating_mode?: string }) =>
+  updateDevice: (id: string, body: { name?: string; location?: string | null; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null; operating_mode?: string }) =>
     request<Device>(`/api/v1/devices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   requestClockSync: (id: string) => request<Device>(`/api/v1/devices/${id}/clock-sync`, { method: "POST" }),
   captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number; marked?: boolean }) =>
@@ -199,6 +199,8 @@ export const api = {
     request<User>(`/api/v1/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   species: () => request<Species[]>("/api/v1/species"),
   createSpecies: (name: string) => request<Species>("/api/v1/species", { method: "POST", body: JSON.stringify({ name }) }),
+  updateSpecies: (id: string, name: string) => request<Species>(`/api/v1/species/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  deleteSpecies: (id: string) => request<null>(`/api/v1/species/${id}`, { method: "DELETE" }),
   annotations: (captureId: string) => request<Annotation[]>(`/api/v1/captures/${captureId}/annotations`),
   createAnnotation: (captureId: string, body: { species_id: string; x: number; y: number; width: number; height: number }) =>
     request<Annotation>(`/api/v1/captures/${captureId}/annotations`, { method: "POST", body: JSON.stringify(body) }),
@@ -207,7 +209,9 @@ export const api = {
   deleteAnnotation: (captureId: string, annotationId: string) =>
     request<null>(`/api/v1/captures/${captureId}/annotations/${annotationId}`, { method: "DELETE" }),
   models: () => request<TrainedModel[]>("/api/v1/models"),
-  trainModel: () => request<TrainedModel>("/api/v1/models/train", { method: "POST" }),
+  trainModel: (body: { images_from?: string | null; images_to?: string | null } = {}) =>
+    request<TrainedModel>("/api/v1/models/train", { method: "POST", body: JSON.stringify(body) }),
+  deleteModel: (id: string) => request<null>(`/api/v1/models/${id}`, { method: "DELETE" }),
   firmware: () => request<FirmwareRelease[]>("/api/v1/firmware"),
   publishFirmware: (body: FormData) => request<{ items: FirmwareRelease[] }>("/api/v1/firmware", { method: "POST", body }),
 }

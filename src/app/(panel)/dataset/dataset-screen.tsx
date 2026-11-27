@@ -1,16 +1,16 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Info } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { MarkedPhoto } from "@/components/marked-photo"
+import { CaptureDialog, DiscardDialog } from "@/components/capture-dialog"
+import { Pagination, usePageParam } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { ApiError, api, downloadDataset, fetchCaptureBlob, subscribeCaptures } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { formatDateTime, labelText } from "@/lib/format"
@@ -46,7 +46,8 @@ export default function DatasetPage() {
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [marked, setMarked] = useState<"" | "yes" | "no">("")
-  const [offset, setOffset] = useState(0)
+  const { page, setPage } = usePageParam()
+  const offset = (page - 1) * PAGE_SIZE
   const [unseen, setUnseen] = useState(0)
   const [selected, setSelected] = useState<Capture | null>(null)
   const [picked, setPicked] = useState<string[]>([])
@@ -75,6 +76,12 @@ export default function DatasetPage() {
   useEffect(() => {
     if (offset === 0) setUnseen(0)
   }, [offset])
+
+  useEffect(() => {
+    if (!captures.data) return
+    const pages = Math.max(1, Math.ceil(captures.data.total / PAGE_SIZE))
+    if (page > pages) setPage(pages)
+  }, [captures.data, page, setPage])
 
   useEffect(() => {
     waiting.current = []
@@ -116,7 +123,11 @@ export default function DatasetPage() {
           <p className="text-sm text-muted-foreground">Fotos recebidas na fase de coleta. As excluídas ficam fora da exportação.</p>
         </div>
         <div className="flex gap-2">
-          {readOnly ? null : <TrainButton />}
+          {readOnly ? null : (
+            <Button type="button" variant="outline" nativeButton={false} render={<Link href="/models?train=1" />}>
+              Treinar Modelo
+            </Button>
+          )}
           {readOnly ? null : (
             <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
               Importar fotos
@@ -127,7 +138,6 @@ export default function DatasetPage() {
           </Button>
         </div>
       </div>
-      {readOnly ? null : <SpeciesBar />}
       <div className="grid gap-3 md:grid-cols-5">
         <div className="space-y-2 md:col-span-2">
           <Label>Armadilha</Label>
@@ -139,7 +149,7 @@ export default function DatasetPage() {
             value={deviceId || "all"}
             onValueChange={(value) => {
               setDeviceId(!value || value === "all" ? "" : value)
-              setOffset(0)
+              setPage(1)
               setUnseen(0)
             }}
           >
@@ -158,11 +168,11 @@ export default function DatasetPage() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="from">De</Label>
-          <Input id="from" type="date" value={from} onChange={(event) => { setFrom(event.target.value); setOffset(0); setUnseen(0) }} />
+          <Input id="from" type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); setUnseen(0) }} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="to">Até</Label>
-          <Input id="to" type="date" value={to} onChange={(event) => { setTo(event.target.value); setOffset(0); setUnseen(0) }} />
+          <Input id="to" type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); setUnseen(0) }} />
         </div>
         <div className="space-y-2">
           <Label>Marcações</Label>
@@ -171,7 +181,7 @@ export default function DatasetPage() {
             value={marked || "all"}
             onValueChange={(value) => {
               setMarked(!value || value === "all" ? "" : value === "no" ? "no" : "yes")
-              setOffset(0)
+              setPage(1)
               setUnseen(0)
             }}
           >
@@ -190,7 +200,7 @@ export default function DatasetPage() {
       {unseen > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-2">
           <p className="text-sm">{unseen === 1 ? "1 foto nova" : `${unseen} fotos novas`}</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => setOffset(0)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => setPage(1)}>
             Ver no início
           </Button>
         </div>
@@ -266,18 +276,8 @@ export default function DatasetPage() {
           )
         })}
       </div>
-      {captures.data && captures.data.total > captures.data.limit ? (
-        <div className="flex items-center justify-between">
-          <Button variant="outline" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
-            Anterior
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            {offset + 1}–{Math.min(offset + PAGE_SIZE, captures.data.total)} de {captures.data.total}
-          </p>
-          <Button variant="outline" disabled={offset + PAGE_SIZE >= captures.data.total} onClick={() => setOffset(offset + PAGE_SIZE)}>
-            Próxima
-          </Button>
-        </div>
+      {captures.data ? (
+        <Pagination page={page} pageSize={PAGE_SIZE} total={captures.data.total} onPage={setPage} />
       ) : null}
 
       {selected ? (
@@ -307,7 +307,7 @@ export default function DatasetPage() {
           onClose={() => setImportOpen(false)}
           onImported={(importedDeviceId) => {
             setDeviceId(importedDeviceId)
-            setOffset(0)
+            setPage(1)
             setUnseen(0)
             queryClient.invalidateQueries({ queryKey: ["captures"] })
             queryClient.invalidateQueries({ queryKey: ["devices"] })
@@ -637,76 +637,6 @@ function ExportDialog({
   )
 }
 
-function modelStatus(status: string) {
-  if (status === "training") return "treinando"
-  if (status === "ready") return "pronto"
-  if (status === "failed") return "falhou"
-  return "aguardando"
-}
-
-function TrainButton() {
-  const queryClient = useQueryClient()
-  const models = useQuery({
-    queryKey: ["models"],
-    queryFn: () => api.models(),
-    refetchInterval: (query) => (query.state.data?.some((model) => model.status === "training") ? 4000 : false),
-  })
-  const train = useMutation({
-    mutationFn: () => api.trainModel(),
-    onSuccess: () => {
-      toast.success("Treino iniciado")
-      queryClient.invalidateQueries({ queryKey: ["models"] })
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível treinar"),
-  })
-  const latest = models.data?.[0]
-  return (
-    <div className="flex items-center gap-2">
-      <Button type="button" variant="outline" disabled={train.isPending || latest?.status === "training"} onClick={() => train.mutate()}>
-        {latest?.status === "training" ? "Treinando..." : "Treinar Modelo"}
-      </Button>
-      {latest ? (
-        <span className="text-xs text-muted-foreground">
-          {modelStatus(latest.status)}
-          {latest.status === "failed" && latest.error ? `: ${latest.error}` : ""}
-        </span>
-      ) : null}
-    </div>
-  )
-}
-
-function SpeciesBar() {
-  const queryClient = useQueryClient()
-  const [name, setName] = useState("")
-  const species = useQuery({ queryKey: ["species"], queryFn: () => api.species() })
-  const create = useMutation({
-    mutationFn: () => api.createSpecies(name.trim()),
-    onSuccess: () => {
-      setName("")
-      queryClient.invalidateQueries({ queryKey: ["species"] })
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível cadastrar a espécie"),
-  })
-  return (
-    <form
-      className="flex flex-wrap items-end gap-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        if (name.trim()) create.mutate()
-      }}
-    >
-      <div className="space-y-2">
-        <Label htmlFor="species-name">Espécie</Label>
-        <Input id="species-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome da praga" />
-      </div>
-      <Button type="submit" variant="outline" disabled={create.isPending || name.trim() === ""}>
-        Adicionar
-      </Button>
-      <p className="pb-2 text-sm text-muted-foreground">{(species.data ?? []).map((item) => item.name).join(", ") || "Nenhuma espécie cadastrada."}</p>
-    </form>
-  )
-}
-
 function CaptureImage({ id, alt, className }: { id: string; alt: string; className?: string }) {
   const [src, setSrc] = useState<string | null>(null)
   useEffect(() => {
@@ -726,242 +656,4 @@ function CaptureImage({ id, alt, className }: { id: string; alt: string; classNa
   }, [id])
   if (!src) return <div className={`bg-muted ${className ?? ""}`} />
   return <img src={src} alt={alt} className={className} />
-}
-
-function DiscardDialog({ ids, onClose, onDone }: { ids: string[]; onClose: () => void; onDone: () => void }) {
-  const queryClient = useQueryClient()
-  const [pending, setPending] = useState(false)
-  const count = ids.length
-
-  return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl bg-card p-4" onClick={(event) => event.stopPropagation()}>
-        <h2 className="text-lg font-semibold">{count === 1 ? "Excluir imagem" : `Excluir ${count} imagens`}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {count === 1 ? "Ela sai" : "Elas saem"} do dataset e da exportação. O arquivo continua guardado e a exclusão pode ser desfeita.
-        </p>
-        <div className="mt-4 flex gap-2">
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={pending}
-            onClick={() => {
-              setPending(true)
-              api
-                .discardCaptures(ids)
-                .then(() => {
-                  toast.success(count === 1 ? "Imagem excluída do dataset" : `${count} imagens excluídas do dataset`, {
-                    action: {
-                      label: "Desfazer",
-                      onClick: () => {
-                        void api
-                          .restoreCaptures(ids)
-                          .then(() => {
-                            queryClient.invalidateQueries({ queryKey: ["captures"] })
-                            queryClient.invalidateQueries({ queryKey: ["devices"] })
-                            toast.success(count === 1 ? "Imagem restaurada" : "Imagens restauradas")
-                          })
-                          .catch((error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível restaurar"))
-                      },
-                    },
-                  })
-                  queryClient.invalidateQueries({ queryKey: ["captures"] })
-                  queryClient.invalidateQueries({ queryKey: ["devices"] })
-                  onDone()
-                })
-                .catch((error) => {
-                  toast.error(error instanceof ApiError ? error.message : "Não foi possível excluir")
-                  setPending(false)
-                })
-            }}
-          >
-            {pending ? "Excluindo..." : "Excluir"}
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancelar
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CaptureDialog({
-  capture,
-  readOnly,
-  onClose,
-  onDelete,
-}: {
-  capture: Capture
-  readOnly: boolean
-  onClose: () => void
-  onDelete: () => void
-}) {
-  const queryClient = useQueryClient()
-  const [manualCount, setManualCount] = useState(capture.manual_count === null ? "" : String(capture.manual_count))
-  const [label, setLabel] = useState(capture.label)
-  const [notes, setNotes] = useState(capture.notes ?? "")
-  const [speciesId, setSpeciesId] = useState("")
-  const species = useQuery({ queryKey: ["species"], queryFn: () => api.species() })
-  const boxes = useQuery({ queryKey: ["annotations", capture.id], queryFn: () => api.annotations(capture.id) })
-  useEffect(() => {
-    if (!speciesId && species.data && species.data.length > 0) setSpeciesId(species.data[0].id)
-  }, [species.data, speciesId])
-  const mark = useMutation({
-    mutationFn: (box: { x: number; y: number; width: number; height: number }) =>
-      api.createAnnotation(capture.id, { species_id: speciesId, ...box }),
-    onSuccess: (created) => {
-      setLabel("with_pest")
-      queryClient.invalidateQueries({ queryKey: ["annotations", capture.id] })
-      queryClient.invalidateQueries({ queryKey: ["captures"] })
-      toast.success(`Marcação de ${created.species_name} salva`)
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível marcar"),
-  })
-  const unmark = useMutation({
-    mutationFn: (annotationId: string) => api.deleteAnnotation(capture.id, annotationId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["annotations", capture.id] })
-      queryClient.invalidateQueries({ queryKey: ["captures"] })
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível remover"),
-  })
-  const revise = useMutation({
-    mutationFn: (patch: { id: string; species_id: string; x: number; y: number; width: number; height: number }) =>
-      api.updateAnnotation(capture.id, patch.id, {
-        species_id: patch.species_id,
-        x: patch.x,
-        y: patch.y,
-        width: patch.width,
-        height: patch.height,
-      }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData<typeof updated[]>(["annotations", capture.id], (current) =>
-        current?.map((item) => (item.id === updated.id ? updated : item)),
-      )
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível ajustar a marcação"),
-  })
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.updateCapture(capture.id, {
-        manual_count: manualCount === "" ? null : Number(manualCount),
-        label,
-        notes,
-      }),
-    onSuccess: () => {
-      toast.success("Rótulo salvo")
-      queryClient.invalidateQueries({ queryKey: ["captures"] })
-      onClose()
-    },
-    onError: (error) => toast.error(error instanceof ApiError ? error.message : "Não foi possível salvar"),
-  })
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3" onClick={onClose}>
-      <div className="flex max-h-[94vh] w-full max-w-[min(96vw,1600px)] flex-col overflow-hidden rounded-xl bg-card md:h-[94vh] md:w-max md:flex-row" onClick={(event) => event.stopPropagation()}>
-        <div className="flex min-h-0 min-w-0">
-          <MarkedPhoto
-            id={capture.id}
-            alt={capture.device_name}
-            boxes={boxes.data ?? []}
-            species={species.data ?? []}
-            frame="dialog"
-            editable={!readOnly}
-            onAdd={(box) => {
-              if (!speciesId) {
-                toast.error("Cadastre uma espécie antes de marcar")
-                return
-              }
-              mark.mutate(box)
-            }}
-            onUpdate={(annotationId, box) =>
-              revise.mutateAsync({ id: annotationId, ...box }).then(() => undefined)
-            }
-            onRemove={(annotationId) => unmark.mutate(annotationId)}
-          />
-        </div>
-        <form
-          className="flex min-h-0 w-full shrink-0 flex-col gap-4 overflow-auto p-4 md:w-[22rem]"
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (!readOnly) mutation.mutate()
-          }}
-        >
-          <div>
-            <h2 className="text-lg font-semibold">{capture.device_name}</h2>
-            <p className="text-sm text-muted-foreground">{formatDateTime(capture.captured_at)}</p>
-            {captureCameraLabel(capture) ? <p className="text-sm text-muted-foreground">{captureCameraLabel(capture)}</p> : null}
-          </div>
-          <div className="space-y-2">
-            <Label>Espécie da próxima marcação</Label>
-            <Select
-              items={Object.fromEntries((species.data ?? []).map((item) => [item.id, item.name]))}
-              value={speciesId || null}
-              onValueChange={(value) => value && setSpeciesId(value)}
-              disabled={readOnly || (species.data ?? []).length === 0}
-            >
-              <SelectTrigger className="w-full" disabled={readOnly}>
-                <SelectValue placeholder="Nenhuma espécie" />
-              </SelectTrigger>
-              <SelectContent>
-                {(species.data ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="count">Contagem manual</Label>
-            <Input id="count" type="number" min={0} value={manualCount} disabled={readOnly} onChange={(event) => setManualCount(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Rótulo</Label>
-            <Select
-              items={{ unlabeled: "Sem rótulo", with_pest: "Com praga", without_pest: "Sem praga" }}
-              value={label}
-              onValueChange={(value) => value && setLabel(value as Capture["label"])}
-              disabled={readOnly}
-            >
-              <SelectTrigger className="w-full" disabled={readOnly}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unlabeled">Sem rótulo</SelectItem>
-                <SelectItem value="with_pest">Com praga</SelectItem>
-                <SelectItem value="without_pest">Sem praga</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea id="notes" value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} />
-          </div>
-          <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span>
-              {readOnly
-                ? "As caixas mostram as marcações humanas e as detecções da armadilha."
-                : "Clique para marcar. Arraste a caixa para movê-la e o canto para mudar o tamanho. A espécie de cada caixa fica na lista dela."}
-            </span>
-          </p>
-          <div className="flex gap-2">
-            <Button type="submit" disabled={readOnly || mutation.isPending}>
-              Salvar
-            </Button>
-            {readOnly ? null : (
-              <Button type="button" variant="destructive" onClick={onDelete}>
-                Excluir
-              </Button>
-            )}
-            <Button type="button" variant="outline" onClick={onClose}>
-              Fechar
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
 }

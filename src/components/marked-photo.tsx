@@ -163,7 +163,7 @@ export function MarkedPhoto({
 
   if (!src) return <div className={frame === "dialog" ? "min-h-40 w-full" : "min-h-40 rounded-lg bg-muted"} />
 
-  const imageClass = frame === "dialog" ? "block h-auto max-h-[60vh] w-full md:max-h-[94vh] md:w-auto md:max-w-[calc(96vw-22rem)]" : "block max-h-[70vh] max-w-full rounded-lg bg-muted"
+  const imageClass = frame === "dialog" ? "block h-auto max-h-[50vh] w-auto max-w-full md:max-h-[94vh] md:max-w-[calc(96vw-22rem)]" : "block max-h-[70vh] max-w-full rounded-lg bg-muted"
 
   return (
     <div className={frame === "dialog" ? "relative max-w-full" : "relative inline-block max-w-full align-top"}>

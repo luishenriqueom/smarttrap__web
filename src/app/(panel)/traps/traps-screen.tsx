@@ -24,6 +24,11 @@ export default function TrapsPage() {
   )
 }
 
+function formatCoordinates(latitude: number | null, longitude: number | null) {
+  if (latitude == null || longitude == null) return "—"
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+}
+
 function TrapsScreen() {
   const { user } = useAuth()
   const params = useSearchParams()
@@ -120,7 +125,7 @@ function TrapsScreen() {
                   <TableRow key={device.id}>
                     <TableCell className="font-medium">{device.name}</TableCell>
                     <TableCell className="font-mono text-xs">{device.code}</TableCell>
-                    <TableCell>{device.location || "—"}</TableCell>
+                    <TableCell>{device.location || formatCoordinates(device.latitude, device.longitude)}</TableCell>
                     <TableCell>{frameSizeLabel(device.frame_size)}</TableCell>
                     <TableCell>{device.jpeg_quality}</TableCell>
                     <TableCell>{Math.round(device.sleep_seconds / 60)} min</TableCell>

@@ -33,6 +33,8 @@ export type Device = {
   code: string
   name: string
   location: string | null
+  latitude: number | null
+  longitude: number | null
   owner_id: string
   owner_name: string
   last_seen_at: string | null
@@ -114,6 +116,8 @@ export type TrainedModel = {
   window: number
   stride: number
   error: string | null
+  images_from: string | null
+  images_to: string | null
   created_at: string
 }
 

@@ -128,3 +128,22 @@
     @apply font-sans;
   }
 }
+
+[data-sonner-toaster][data-close-button] [data-sonner-toast] {
+  padding-right: 2rem;
+}
+
+[data-sonner-toast] [data-close-button] {
+  left: unset;
+  right: 0.4rem;
+  top: 0.45rem;
+  transform: none;
+  background: var(--popover);
+  border-color: var(--border);
+  color: var(--muted-foreground);
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}

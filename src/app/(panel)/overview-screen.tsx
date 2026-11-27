@@ -28,7 +28,7 @@ export default function OverviewPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Visão geral</h1>
-          <p className="text-sm text-muted-foreground">Contagem, bateria e última comunicação de cada armadilha.</p>
+          <p className="text-sm text-muted-foreground">Contagem e última comunicação de cada armadilha.</p>
         </div>
         <Select
           items={Object.fromEntries(periods.map((item) => [item.value, item.label]))}
@@ -71,10 +71,9 @@ export default function OverviewPage() {
                   <Badge variant={device.is_online ? "default" : "outline"}>{device.is_online ? "Online" : "Offline"}</Badge>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-3 gap-3">
+              <CardContent className="grid grid-cols-2 gap-3">
                 <Stat label="Pragas" value={device.last_metric ? formatNumber(device.last_metric.pest_count) : "—"} />
                 <Stat label="Confiança" value={formatPercent(device.last_metric?.confidence ?? null)} />
-                <Stat label="Bateria" value={device.last_metric?.battery_v != null ? `${formatNumber(device.last_metric.battery_v, 2)} V` : "—"} />
                 <p className="col-span-3 text-xs text-muted-foreground">Visto {timeAgo(device.last_seen_at)}</p>
               </CardContent>
             </Card>

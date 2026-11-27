@@ -1,6 +1,6 @@
 "use client"
 
-import { Cpu, Crosshair, Images, LayoutDashboard, LogOut, Radio, Users } from "lucide-react"
+import { Brain, Bug, Cpu, Crosshair, Images, LayoutDashboard, LogOut, Radio, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,8 @@ const links = [
   { href: "/", label: "Visão geral", icon: LayoutDashboard },
   { href: "/traps", label: "Armadilhas", icon: Radio },
   { href: "/dataset", label: "Dataset", icon: Images },
+  { href: "/species", label: "Espécies", icon: Bug },
+  { href: "/models", label: "Modelos", icon: Brain },
 ]
 
 export function Shell({ user, children }: { user: User; children: React.ReactNode }) {
