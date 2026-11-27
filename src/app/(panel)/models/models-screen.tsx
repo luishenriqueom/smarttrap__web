@@ -86,9 +86,14 @@ export default function ModelsScreen() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {models.data.map((model) => (
+                {models.data.map((model, index) => (
                   <TableRow key={model.id}>
-                    <TableCell>{formatDateTime(model.created_at)}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2">
+                        {formatDateTime(model.created_at)}
+                        {index === 0 ? <Badge>Mais recente</Badge> : null}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={model.status === "failed" ? "outline" : "secondary"}>{modelStatus(model.status)}</Badge>
                     </TableCell>

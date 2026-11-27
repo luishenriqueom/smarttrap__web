@@ -7,6 +7,11 @@ export function formatDateTime(value: string | null) {
   return dateTime.format(new Date(value))
 }
 
+export function modelLabel(model: { created_at: string; class_labels: string[] }, latest = false) {
+  const classes = model.class_labels.join(", ") || "Sem classes"
+  return `${formatDateTime(model.created_at)} · ${classes}${latest ? " · mais recente" : ""}`
+}
+
 export function formatNumber(value: number | null, digits = 0) {
   if (value === null || Number.isNaN(value)) return "—"
   return value.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits })

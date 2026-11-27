@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError, api } from "@/lib/api"
 import { FRAME_SIZES } from "@/lib/framesize"
+import { modelLabel } from "@/lib/format"
 import type { TrainedModel } from "@/lib/types"
 
 export type TrapDraft = {
@@ -62,7 +63,14 @@ export function TrapForm({
   const [operatingMode, setOperatingMode] = useState(initial?.operating_mode ?? "collect")
   const [modelId, setModelId] = useState(initial?.model_id ?? "")
   const models = useQuery({ queryKey: ["models"], queryFn: () => api.models(), enabled: Boolean(initial) })
-  const readyModels = (models.data ?? []).filter((model): model is TrainedModel => model.status === "ready")
+  const readyModels = (models.data ?? [])
+    .filter((model): model is TrainedModel => model.status === "ready")
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+  const latestReadyId = readyModels[0]?.id
+  const modelItems = {
+    none: "Nenhum",
+    ...Object.fromEntries(readyModels.map((model) => [model.id, modelLabel(model, model.id === latestReadyId)])),
+  }
   const mutation = useMutation({
     mutationFn: async () => {
       const quality = Number(jpegQuality)
@@ -261,7 +269,7 @@ export function TrapForm({
             <div className="space-y-2">
               <Label>Modelo</Label>
               <Select
-                items={{ none: "Nenhum", ...Object.fromEntries(readyModels.map((model) => [model.id, model.class_labels.join(", ") || model.id.slice(0, 8)])) }}
+                items={modelItems}
                 value={modelId || "none"}
                 onValueChange={(value) => setModelId(!value || value === "none" ? "" : value)}
               >
@@ -272,7 +280,7 @@ export function TrapForm({
                   <SelectItem value="none">Nenhum</SelectItem>
                   {readyModels.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
-                      {model.class_labels.join(", ") || model.id.slice(0, 8)}
+                      {modelLabel(model, model.id === latestReadyId)}
                     </SelectItem>
                   ))}
                 </SelectContent>
