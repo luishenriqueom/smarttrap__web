@@ -5,13 +5,14 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { LocationMap } from "@/components/location-map"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError, api } from "@/lib/api"
 import { FRAME_SIZES } from "@/lib/framesize"
-import { modelLabel } from "@/lib/format"
+import { formatClockMinute, modelLabel } from "@/lib/format"
 import type { TrainedModel } from "@/lib/types"
 
 export type TrapDraft = {
@@ -25,8 +26,20 @@ export type TrapDraft = {
   frame_size: string
   jpeg_quality: number
   sleep_seconds: number
+  night_start_minute: number
+  night_end_minute: number
+  night_pause: boolean
   operating_mode: string
   model_id: string | null
+}
+
+function clockToMinutes(value: string) {
+  const match = /^(\d{2}):(\d{2})/.exec(value)
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour > 23 || minute > 59) return null
+  return hour * 60 + minute
 }
 
 function coordinateValue(value: string) {
@@ -60,6 +73,9 @@ export function TrapForm({
   const [frameSize, setFrameSize] = useState(initial?.frame_size ?? "svga")
   const [jpegQuality, setJpegQuality] = useState(String(initial?.jpeg_quality ?? 12))
   const [sleepMinutes, setSleepMinutes] = useState(String(Math.round((initial?.sleep_seconds ?? 300) / 60)))
+  const [nightStart, setNightStart] = useState(formatClockMinute(initial?.night_start_minute ?? 17 * 60 + 30))
+  const [nightEnd, setNightEnd] = useState(formatClockMinute(initial?.night_end_minute ?? 6 * 60 + 30))
+  const [nightPause, setNightPause] = useState(initial?.night_pause ?? true)
   const [operatingMode, setOperatingMode] = useState(initial?.operating_mode ?? "collect")
   const [modelId, setModelId] = useState(initial?.model_id ?? "")
   const models = useQuery({ queryKey: ["models"], queryFn: () => api.models(), enabled: Boolean(initial) })
@@ -80,6 +96,14 @@ export function TrapForm({
       }
       if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
         throw new ApiError(422, "O intervalo de sono deve ficar entre 1 minuto e 24 horas")
+      }
+      const nightStartMinute = clockToMinutes(nightStart)
+      const nightEndMinute = clockToMinutes(nightEnd)
+      if (nightStartMinute === null || nightEndMinute === null) {
+        throw new ApiError(422, "O horário da pausa deve ficar entre 00:00 e 23:59")
+      }
+      if (nightPause && nightStartMinute === nightEndMinute) {
+        throw new ApiError(422, "Os horários de dormir e acordar precisam ser diferentes")
       }
       if (latitude === undefined || longitude === undefined) {
         throw new ApiError(422, "Informe uma latitude e uma longitude válidas")
@@ -103,6 +127,9 @@ export function TrapForm({
           frame_size: frameSize,
           jpeg_quality: quality,
           sleep_seconds: sleepSeconds,
+          night_start_minute: nightStartMinute,
+          night_end_minute: nightEndMinute,
+          night_pause: nightPause,
           operating_mode: operatingMode,
           model_id: modelId || null,
           ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
@@ -117,6 +144,9 @@ export function TrapForm({
         frame_size: frameSize,
         jpeg_quality: quality,
         sleep_seconds: sleepSeconds,
+        night_start_minute: nightStartMinute,
+        night_end_minute: nightEndMinute,
+        night_pause: nightPause,
         operating_mode: operatingMode,
         ...(superadmin && ownerId ? { owner_id: ownerId } : {}),
       })
@@ -247,6 +277,21 @@ export function TrapForm({
               required
             />
             <p className="text-xs text-muted-foreground">Depois de cada ciclo. O padrão é 5 minutos. Vale no fim do ciclo em que a armadilha buscar a configuração.</p>
+          </div>
+          <div className="flex items-center justify-between gap-4 md:col-span-2">
+            <div className="space-y-1">
+              <Label htmlFor="trap-night-pause">Pausa da noite</Label>
+              <p className="text-xs text-muted-foreground">Horário local da armadilha, UTC−3. Ligada, ela não fotografa entre os horários abaixo. O padrão é 17:30 e 06:30. Vale no despertar seguinte ao ciclo em que a configuração for lida.</p>
+            </div>
+            <Switch id="trap-night-pause" checked={nightPause} onCheckedChange={setNightPause} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="trap-night-start">Dormir às</Label>
+            <Input id="trap-night-start" type="time" value={nightStart} onChange={(event) => setNightStart(event.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="trap-night-end">Acordar às</Label>
+            <Input id="trap-night-end" type="time" value={nightEnd} onChange={(event) => setNightEnd(event.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label>Modo</Label>

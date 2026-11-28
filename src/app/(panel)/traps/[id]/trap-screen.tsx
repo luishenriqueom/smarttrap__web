@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ApiError, api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { frameSizeLabel } from "@/lib/framesize"
-import { formatClockSkew, formatDateTime, formatNumber, formatPercent, modeStatus, periodRange } from "@/lib/format"
+import { formatClockSkew, formatDateTime, formatNumber, formatPercent, modeStatus, nightWindowLabel, periodRange } from "@/lib/format"
 import type { Capture, Period } from "@/lib/types"
 
 const periods: { value: Period; label: string }[] = [
@@ -76,7 +76,7 @@ export default function TrapDetailPage() {
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {current.code}
-            {current.location ? ` · ${current.location}` : ""} · {current.owner_name} · {modeStatus(current.operating_mode, current.reported_mode)} · Resolução {frameSizeLabel(current.frame_size)} · JPEG {current.jpeg_quality} · Sono {Math.round(current.sleep_seconds / 60)} min
+            {current.location ? ` · ${current.location}` : ""} · {current.owner_name} · {modeStatus(current.operating_mode, current.reported_mode)} · Resolução {frameSizeLabel(current.frame_size)} · JPEG {current.jpeg_quality} · Sono {Math.round(current.sleep_seconds / 60)} min · Pausa {nightWindowLabel(current.night_start_minute, current.night_end_minute, current.night_pause)}
           </p>
         </div>
         <Select

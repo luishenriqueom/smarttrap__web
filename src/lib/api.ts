@@ -176,9 +176,9 @@ export const api = {
   me: () => request<User>("/api/v1/auth/me"),
   devices: (ownerId?: string) => request<Page<Device>>(withQuery("/api/v1/devices", { limit: 100, owner_id: ownerId })),
   device: (id: string) => request<Device>(`/api/v1/devices/${id}`),
-  createDevice: (body: { code: string; name: string; location?: string; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; operating_mode?: string }) =>
+  createDevice: (body: { code: string; name: string; location?: string; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; night_start_minute?: number; night_end_minute?: number; night_pause?: boolean; operating_mode?: string }) =>
     request<Device>("/api/v1/devices", { method: "POST", body: JSON.stringify(body) }),
-  updateDevice: (id: string, body: { name?: string; location?: string | null; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; model_id?: string | null; operating_mode?: string }) =>
+  updateDevice: (id: string, body: { name?: string; location?: string | null; latitude?: number | null; longitude?: number | null; owner_id?: string; frame_size?: string; jpeg_quality?: number; sleep_seconds?: number; night_start_minute?: number; night_end_minute?: number; night_pause?: boolean; model_id?: string | null; operating_mode?: string }) =>
     request<Device>(`/api/v1/devices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   requestClockSync: (id: string) => request<Device>(`/api/v1/devices/${id}/clock-sync`, { method: "POST" }),
   captures: (params: { device_id?: string; from?: string; to?: string; limit?: number; offset?: number; marked?: boolean }) =>

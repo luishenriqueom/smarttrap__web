@@ -22,6 +22,17 @@ export function formatPercent(value: number | null) {
   return `${Math.round(value * 100)}%`
 }
 
+export function formatClockMinute(minutes: number) {
+  const hour = Math.floor(minutes / 60)
+  const minute = minutes % 60
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
+}
+
+export function nightWindowLabel(start: number, end: number, enabled = true) {
+  if (!enabled) return "desligada"
+  return `${formatClockMinute(start)}–${formatClockMinute(end)}`
+}
+
 export function modeLabel(mode: string | null) {
   if (mode === "infer") return "Inferência"
   if (mode === "collect") return "Coleta"

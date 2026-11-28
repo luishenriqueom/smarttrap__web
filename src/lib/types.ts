@@ -45,6 +45,9 @@ export type Device = {
   frame_size: string
   jpeg_quality: number
   sleep_seconds: number
+  night_start_minute: number
+  night_end_minute: number
+  night_pause: boolean
   model_id: string | null
   last_clock_at: string | null
   last_clock_received_at: string | null
